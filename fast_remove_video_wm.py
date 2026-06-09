@@ -19,6 +19,8 @@ TEMP_NO_AUDIO = "temp_na.mp4"
 # 目标视频文件输出目录
 OUTPUT_DIR = "output"
 
+TEMP_NO_AUDIO_FILE = os.path.join(MASK_DIR, TEMP_NO_AUDIO)
+
 # 视频屏幕水印区域列表 (x, y, w, h) - 多个矩形
 WATERMARK_RECTS = [
     (1050, 623, 222, 77),  # 右下角水印
@@ -147,7 +149,7 @@ def process_video_parallel(file_name):
     print("✅ 掩码创建完成")
 
     # 4. 设置视频写入器
-    writer = cv2.VideoWriter(TEMP_NO_AUDIO, cv2.VideoWriter_fourcc(*"mp4v"), fps,
+    writer = cv2.VideoWriter(TEMP_NO_AUDIO_FILE, cv2.VideoWriter_fourcc(*"mp4v"), fps,
                              (width_original, height_original))
 
     # 5. 并行处理视频帧
@@ -280,7 +282,6 @@ def merge_audio(file_name):
     """
     print("🎵 开始合并音频...")
 
-    TEMP_NO_AUDIO_FILE = os.path.join(MASK_DIR, TEMP_NO_AUDIO)
     print("TEMP_NO_AUDIO_FILE=", TEMP_NO_AUDIO_FILE)
     if not os.path.exists(TEMP_NO_AUDIO_FILE) or os.path.getsize(TEMP_NO_AUDIO_FILE) == 0:
         print(f"❌ 临时视频文件无效，跳过音频合并")
