@@ -10,12 +10,14 @@ import concurrent.futures
 from collections import OrderedDict
 
 # ================= 配置参数 =================
-# 原始视频文件
-INPUT = "input.mp4"
+# 原始视频文件存放目录
+INPUT_DIR = "input"
+# 水印文件存放目录
+MASK_DIR = "masks"
 # 临时视频文件
 TEMP_NO_AUDIO = "temp_na.mp4"
-# 目标视频文件
-OUTPUT = "output.mp4"
+# 目标视频文件输出目录
+OUTPUT_DIR = "output"
 
 # 视频屏幕水印区域列表 (x, y, w, h) - 多个矩形
 WATERMARK_RECTS = [
@@ -29,8 +31,8 @@ USE_SCALE = True  # 是否启用缩放处理，设为 False 则使用原始分�
 SCALE_FACTOR = 0.5  # 缩放系数 (0.5 表示将长宽都缩小一半)
 # 本地小模型API地址：
 API_URL = "http://localhost:8080/api/v1/inpaint"
-# 本地小模型CPU启动命令iopaint start --model=lama --device=cpu --port=8080 --cpu-offload
-# 本地小模型CUDA启动命令iopaint start --model=lama --device=cuda --port=8080
+# 本地小模型CPU启动命令 iopaint start --model=lama --device=cpu --port=8080 --cpu-offload
+# 本地小模型CUDA启动命令 iopaint start --model=lama --device=cuda --port=8080
 API_TIMEOUT = 200  # API 请求超时时间（秒）
 
 # 并发配置
@@ -39,7 +41,6 @@ BUFFER_SIZE = 10  # 缓冲区大小，用于防止内存溢出
 
 
 # ===========================================
-
 def image_to_base64(image):
     """
     将 OpenCV 图像（numpy.ndarray）编码为 PNG 格式的 Base64 字符串。
@@ -78,7 +79,7 @@ def send_inpaint_request(payload, original_frame, frame_idx, use_scale, original
         return frame_idx, original_frame, f"处理异常: {e}"
 
 
-def process_video_parallel():
+def process_video_parallel(file_name):
     """
     并行处理视频帧
     """
@@ -93,9 +94,9 @@ def process_video_parallel():
         print("⚠️ 无法确认后端状态，将尝试继续...")
 
     # 2. 读取视频并获取基本信息
-    cap = cv2.VideoCapture(INPUT)
+    cap = cv2.VideoCapture(file_name)
     if not cap.isOpened():
-        print(f"❌ 无法打开视频文件: {INPUT}")
+        print(f"❌ 无法打开视频文件: {file_name}")
         sys.exit(1)
 
     fps = cap.get(cv2.CAP_PROP_FPS)
@@ -163,7 +164,7 @@ def process_video_parallel():
 
     # 重新打开视频读取器，因为之前读取了一些帧用于获取信息
     cap.release()
-    cap = cv2.VideoCapture(INPUT)
+    cap = cv2.VideoCapture(file_name)
 
     # 提交所有任务
     future_to_frame = {}
@@ -273,21 +274,24 @@ def process_video_parallel():
     return total_frames - failed_frames > 0
 
 
-def merge_audio():
+def merge_audio(file_name):
     """
     合并原视频的音频到处理后的视频
     """
     print("🎵 开始合并音频...")
 
-    if not os.path.exists(TEMP_NO_AUDIO) or os.path.getsize(TEMP_NO_AUDIO) == 0:
+    TEMP_NO_AUDIO_FILE = os.path.join(MASK_DIR, TEMP_NO_AUDIO)
+    print("TEMP_NO_AUDIO_FILE=", TEMP_NO_AUDIO_FILE)
+    if not os.path.exists(TEMP_NO_AUDIO_FILE) or os.path.getsize(TEMP_NO_AUDIO_FILE) == 0:
         print(f"❌ 临时视频文件无效，跳过音频合并")
         return False
-
+    OUTPUT_FILE = os.path.join(OUTPUT_DIR, file_name)
+    print("OUTPUT_FILE=",OUTPUT_FILE)
     # 优化的 FFmpeg 参数，在保持画质的同时加快速度
     cmd = [
         'ffmpeg', '-y',
-        '-i', TEMP_NO_AUDIO,
-        '-i', INPUT,
+        '-i', TEMP_NO_AUDIO_FILE,
+        '-i', file_name,
         '-map', '0:v',
         '-map', '1:a?',  # '?' 表示如果没音频就不报错
         '-c:v', 'libx264',
@@ -296,15 +300,15 @@ def merge_audio():
         '-c:a', 'aac',  # 音频编码
         '-b:a', '192k',  # 音频码率
         '-shortest',
-        OUTPUT
+        OUTPUT_FILE
     ]
 
     try:
         subprocess.run(cmd, check=True, capture_output=True)
-        print(f"✅ 最终视频已保存至: {OUTPUT}")
+        print(f"✅ 最终视频已保存至: {OUTPUT_FILE}")
 
         # 删除临时文件
-        os.remove(TEMP_NO_AUDIO)
+        os.remove(TEMP_NO_AUDIO_FILE)
         return True
 
     except subprocess.CalledProcessError as e:
@@ -322,20 +326,24 @@ def main():
     print("=" * 60)
     print("🎬 视频水印去除工具 (并行优化版)")
     print("=" * 60)
-
     # 检查输入文件
-    if not os.path.exists(INPUT):
-        print(f"❌ 找不到输入文件: {INPUT}")
+    if not os.path.exists(INPUT_DIR):
+        print(f"❌ 找不到输入文件: {INPUT_DIR}")
         return
 
-    # 处理视频
-    success = process_video_parallel()
+    for fname in os.listdir(INPUT_DIR):
+        if fname.lower().endswith((".mp4")):
+            print("fname=",fname)
+            # 处理视频
+            success = process_video_parallel(fname)
 
-    if success:
-        # 合并音频
-        merge_audio()
-    else:
-        print("❌ 视频处理失败，请检查错误信息")
+            if success:
+                # 合并音频
+                merge_audio(fname)
+            else:
+                print("❌ 视频处理失败，请检查错误信息")
+
+
 
 
 if __name__ == "__main__":
