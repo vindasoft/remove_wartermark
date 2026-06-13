@@ -15,8 +15,8 @@ MASK_DIR = "masks"
 OUTPUT_DIR = "output"
 
 EXTEND_BORDER_PX = 10
-threshold = 20
-white_threshold = 220
+threshold = 10
+white_threshold = 200
 feather = 0
 EXPORT_DIR = "export"
 
@@ -61,8 +61,8 @@ def generate_masks():
             cv2.imwrite(os.path.join(MASK_DIR, fname), mask)
 
 
-def remove_white_background(input_path, output_path, color_threshold=30,
-                            white_threshold=220, feather_radius=0):
+def remove_white_background(input_path, output_path, color_threshold,
+                            white_threshold, feather_radius):
     """
     自动识别并去除图片中的白色背景/边框，生成透明背景图
 
