@@ -276,7 +276,7 @@ def process_video_parallel(file_name):
     return total_frames - failed_frames > 0
 
 
-def merge_audio(file_name):
+def merge_audio(input_file_path, file_name):
     """
     合并原视频的音频到处理后的视频
     """
@@ -292,7 +292,7 @@ def merge_audio(file_name):
     cmd = [
         'ffmpeg', '-y',
         '-i', TEMP_NO_AUDIO_FILE,
-        '-i', file_name,
+        '-i', input_file_path,
         '-map', '0:v',
         '-map', '1:a?',  # '?' 表示如果没音频就不报错
         '-c:v', 'libx264',
@@ -335,12 +335,13 @@ def main():
     for fname in os.listdir(INPUT_DIR):
         if fname.lower().endswith((".mp4")):
             print("fname=",fname)
+            file_path = os.path.join(INPUT_DIR, fname)
             # 处理视频
-            success = process_video_parallel(fname)
+            success = process_video_parallel(file_path)
 
             if success:
                 # 合并音频
-                merge_audio(fname)
+                merge_audio(file_path, fname)
             else:
                 print("❌ 视频处理失败，请检查错误信息")
 
